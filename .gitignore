@@ -1,0 +1,26 @@
+# Local credentials and runtime configuration
+config.json
+.env
+.env.*
+
+# Enterprise WeChat attendance data (contains employee personal information)
+data/*
+!data/.gitkeep
+
+# Local screenshots and generated UI evidence
+__ui_test/
+
+# Python caches and local tooling output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# OS/editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Logs and local runtime output
+*.log

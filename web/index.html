@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>企业微信打卡分析看板</title>
+<link rel="stylesheet" href="css/app.css">
+<script src="vendor/echarts.min.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">◉</span>
+    <div>
+      <h1>企业微信打卡分析看板</h1>
+      <p id="sourceLine" class="sub">数据加载中…</p>
+    </div>
+  </div>
+  <div class="toolbar">
+    <label class="fld">日期<input type="date" id="fStart"></label>
+    <label class="fld">至<input type="date" id="fEnd"></label>
+    <label class="fld">快捷
+      <select id="fQuick">
+        <option value="7">近 7 天</option>
+        <option value="14">近 14 天</option>
+        <option value="30" selected>近 30 天</option>
+        <option value="60">近 60 天</option>
+        <option value="all">全部区间</option>
+      </select>
+    </label>
+    <label class="fld">部门<select id="fDept"></select></label>
+    <label class="fld">打卡规则<select id="fGroup"></select></label>
+    <label class="fld">口径
+      <select id="fScope">
+        <option value="all" selected>含外勤</option>
+        <option value="office">仅上下班</option>
+        <option value="outside">仅外勤/外出</option>
+      </select>
+    </label>
+    <button id="btnApply" class="btn primary">应用筛选</button>
+    <button id="btnFetch" class="btn">拉取新数据</button>
+    <span class="menu-wrap">
+      <button id="btnExport" class="btn">导出 CSV ▾</button>
+      <span class="menu hidden" id="exportMenu">
+        <button data-kind="records">打卡原始记录（全量）</button>
+        <button data-kind="daily">打卡日报（全量）</button>
+        <button data-kind="exceptions">异常明细（当前筛选）</button>
+      </span>
+    </span>
+    <button id="btnTheme" class="btn icon" title="切换深色/浅色">◐</button>
+  </div>
+</header>
+
+<div id="banner" class="banner hidden"></div>
+<div class="policy-note" id="policyLine"></div>
+<div class="quality-note" id="qualityLine" role="status"></div>
+
+<nav class="tabs" id="tabs">
+  <button class="tab active" data-tab="overview">总览</button>
+  <button class="tab" data-tab="time">打卡时间</button>
+  <button class="tab" data-tab="place">地点热力</button>
+  <button class="tab" data-tab="trend">趋势对比</button>
+  <button class="tab" data-tab="risk">异常与人员</button>
+  <button class="tab" data-tab="load">工时与加班</button>
+  <button class="tab" data-tab="dept">部门对比</button>
+</nav>
+
+<main>
+  <!-- 总览 -->
+  <section class="panel active" id="panel-overview">
+    <div class="kpis" id="kpiCards"></div>
+    <details class="card">
+      <summary>全员数据覆盖（含没有打卡记录的人员）</summary>
+      <p class="hint">缺少考勤依据的日期暂不参与比率，不等于旷工；也不会据此推断入职日期。点击姓名查看画像，核对实际入职、考勤生效时间及可见范围。已确认的休息日不要求有工作日报。</p>
+      <div class="mapctl"><input class="inp" id="coverageSearch" aria-label="查找考勤人员" placeholder="搜索姓名或当前部门"><select id="coverageFilter" aria-label="人员数据覆盖"><option value="missing">仅看数据待核定</option><option value="all">全部应考勤人员</option></select><span id="coverageCount" class="hint"></span></div>
+      <div class="table-wrap correction-table"><table><thead><tr><th>姓名</th><th>当前部门</th><th>核定应出勤人日</th><th>有效出勤人日</th><th>排班依据不明</th><th>已知工作日日报待补</th></tr></thead><tbody id="coverageBody"></tbody></table></div>
+    </details>
+    <div class="grid g2">
+      <div class="card"><h3>每日出勤人数与核定出勤率<span class="hint">比率仅使用核定应出勤人日</span></h3><div class="chart" id="c_dailyAttendance"></div></div>
+      <div class="card"><h3>打卡时刻分布（0-23 时）</h3><div class="chart" id="c_hourDist"></div></div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3>星期 × 小时 打卡热度</h3><div class="chart" id="c_wdHour"></div></div>
+      <div class="card"><h3>打卡地点 TOP10</h3><div class="chart" id="c_topPlaceMini"></div></div>
+    </div>
+  </section>
+
+  <!-- 时间分析 -->
+  <section class="panel" id="panel-time">
+    <div class="grid g3">
+      <div class="card"><h3>到岗时间分布<span class="hint">相对标准上班时间的偏移</span></h3><div class="chart" id="c_arriveOffset"></div></div>
+      <div class="card"><h3>离岗时间分布</h3><div class="chart" id="c_leaveOffset"></div></div>
+      <div class="card"><h3>每日平均到岗 / 离岗时刻</h3><div class="chart" id="c_avgTimes"></div></div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3>日历热力图（当日打卡人次）</h3><div class="chart tall" id="c_calendar"></div></div>
+      <div class="card"><h3>到岗 / 离岗时刻箱线图（按周）</h3><div class="chart tall" id="c_boxWeek"></div></div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3>部门 × 小时 打卡热度</h3><div class="chart tall" id="c_deptHour"></div></div>
+      <div class="card"><h3>首末打卡时刻散点（每人每日）</h3><div class="chart tall" id="c_scatterTime"></div></div>
+    </div>
+  </section>
+
+  <!-- 地点热力 -->
+  <section class="panel" id="panel-place">
+    <div class="card">
+      <h3>打卡地点热力图
+        <span class="hint">坐标为企业微信返回的 GCJ-02 经纬度，底图使用高德栅格瓦片；无网络时自动降级为坐标分布图</span>
+        <span class="mapctl">
+          <select id="mapMode" aria-label="地图展现模式">
+            <option value="heat" selected>标准热力</option>
+            <option value="density">蓝色密度</option>
+            <option value="point">点位气泡</option>
+            <option value="cluster">地点聚合</option>
+          </select>
+          <select id="mapType">
+            <option value="all" selected>全部打卡</option>
+            <option value="in">上班打卡</option>
+            <option value="out">外出打卡</option>
+            <option value="off">下班打卡</option>
+            <option value="exc">仅异常打卡</option>
+          </select>
+          <select id="mapFocus" title="定位到某个城市/地点"><option value="">定位…</option></select>
+          <label class="map-smooth" id="mapSpreadControl">柔化<input type="range" id="mapSpread" min="18" max="54" step="2" value="30" aria-label="热力柔化程度" title="只调整视觉扩散，不代表实际打卡范围"></label>
+          <button class="btn sm" id="mapOut" title="缩小">−</button><button class="btn sm" id="mapIn" title="放大">＋</button>
+          <button class="btn sm" id="mapReset">重置视图</button>
+        </span>
+      </h3>
+      <div id="map" class="map"></div>
+      <div class="legend"><span class="density-key">低</span><i class="grad density-key" id="mapGradient"></i><span class="density-key">高</span><span id="mapLegendCaption">相对密度 · 按当前视野归一化</span><b id="mapStat"></b></div>
+    </div>
+    <div class="grid g3">
+      <div class="card"><h3>地点类型构成</h3><div class="chart" id="c_placeType"></div></div>
+      <div class="card"><h3>打卡城市分布</h3><div class="chart" id="c_city"></div></div>
+      <div class="card"><h3>距主办公点距离分布</h3><div class="chart" id="c_distance"></div></div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3>打卡地点排行<span class="hint">按打卡次数</span></h3><div class="chart tall" id="c_topPlace"></div></div>
+      <div class="card"><h3>人员活动地点多样性<span class="hint">异地/多点活动排行</span></h3><div class="chart tall" id="c_diversity"></div></div>
+    </div>
+    <div class="card"><h3>WiFi / 设备使用分布<span class="hint">识别非公司 WiFi、共用设备</span></h3>
+      <div class="grid g2"><div class="chart" id="c_wifi"></div><div class="chart" id="c_device"></div></div>
+    </div>
+  </section>
+
+  <!-- 趋势 -->
+  <section class="panel" id="panel-trend">
+    <div class="grid g2">
+      <div class="card"><h3>出勤率 / 迟到率 / 缺卡率趋势</h3><div class="chart tall" id="c_rateTrend"></div></div>
+      <div class="card"><h3>人均工时与加班时长趋势</h3><div class="chart tall" id="c_workTrend"></div></div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3>部门 × 日期 出勤率热力</h3><div class="chart tall" id="c_deptDay"></div></div>
+      <div class="card"><h3>周维度对比（环比）</h3><div class="chart tall" id="c_weekCmp"></div></div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3>星期维度规律（周内节律）</h3><div class="chart" id="c_weekday"></div></div>
+      <div class="card"><h3>月度对比</h3><div class="chart" id="c_month"></div></div>
+    </div>
+  </section>
+
+  <!-- 异常与人员 -->
+  <section class="panel" id="panel-risk">
+    <div class="card">
+      <h3>本月补卡与核定结果 <span class="mapctl"><select id="correctionStatus" aria-label="补卡审批状态"><option value="all">全部补卡状态</option><option value="pending">待审批</option><option value="approved">已通过</option><option value="rejected">已驳回</option><option value="withdrawn">已撤回</option><option value="revoked">通过后撤销</option></select><span class="hint" id="correctionCount"></span></span></h3>
+      <p class="hint">时间与地点按最新核定结果整体更新。申请中不提前判正常，历史轨迹保留原地点。数据缺失不等于没有申请。</p>
+      <div class="table-wrap correction-table"><table><thead><tr><th>考勤日期</th><th>姓名</th><th>当前部门</th><th>原始异常</th><th>审批状态</th><th>有效考勤</th></tr></thead><tbody id="correctionBody"></tbody></table></div>
+      <div class="pager"><button class="btn sm" id="correctionPrev">上一页补卡</button><span id="correctionPageInfo"></span><button class="btn sm" id="correctionNext">下一页补卡</button></div>
+    </div>
+    <div class="grid g3">
+      <div class="card"><h3>异常类型构成</h3><div class="chart" id="c_excPie"></div></div>
+      <div class="card"><h3>异常趋势</h3><div class="chart" id="c_excTrend"></div></div>
+      <div class="card"><h3>假勤 / 外勤结构</h3><div class="chart" id="c_sp"></div></div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3>人均异常次数排行<span class="hint">最新核定异常次数 / 应出勤人日；待审批另列，点击行看个人画像</span></h3><div class="chart tall" id="c_personRank"></div></div>
+      <div class="card"><h3>迟到 / 早退 / 缺卡 分布矩阵</h3><div class="chart tall" id="c_excMatrix"></div></div>
+    </div>
+    <div class="card">
+      <h3>异常明细
+        <span class="mapctl">
+          <input id="tblSearch" class="inp" placeholder="搜索姓名 / 部门 / 地点 / 备注">
+          <select id="tblExc">
+            <option value="all">全部异常</option><option value="迟到">迟到</option><option value="早退">早退</option>
+            <option value="缺卡">缺卡</option><option value="旷工">旷工</option><option value="地点异常">地点异常</option>
+            <option value="设备异常">设备异常</option><option value="外勤">外勤</option>
+          </select>
+          <span id="tblCount" class="hint"></span>
+          <button class="btn sm" id="tblExport" title="按当前搜索/类型筛选导出 CSV">导出 CSV</button>
+        </span>
+      </h3>
+      <div class="table-wrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+      <div class="pager"><button id="pgPrev" class="btn sm">上一页</button><span id="pgInfo"></span><button id="pgNext" class="btn sm">下一页</button></div>
+    </div>
+  </section>
+
+  <!-- 工时与加班 -->
+  <section class="panel" id="panel-load">
+    <div class="grid g3">
+      <div class="card"><h3>日工时分布</h3><div class="chart" id="c_workHist"></div></div>
+      <div class="card"><h3>连续在岗天数 TOP</h3><div class="chart" id="c_streak"></div></div>
+      <div class="card"><h3>19点后加班构成</h3><div class="chart" id="c_ot"></div></div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3>19点后加班排行<span class="hint">非审批加班或计薪时长</span></h3><div class="chart tall" id="c_otRank"></div></div>
+      <div class="card"><h3>最晚离岗时刻趋势<span class="hint">晚归信号</span></h3><div class="chart tall" id="c_lateNight"></div></div>
+    </div>
+  </section>
+
+  <!-- 部门对比 -->
+  <section class="panel" id="panel-dept">
+    <div class="grid g2">
+      <div class="card"><h3>部门考勤指标<span class="hint">不含“加班越多越好”的综合评分</span></h3><div class="chart tall" id="c_deptRadar"></div></div>
+      <div class="card"><h3>部门指标对比</h3><div class="chart tall" id="c_deptBar"></div></div>
+    </div>
+    <div class="card"><h3>部门指标明细表</h3><div class="table-wrap"><table id="deptTbl"><thead></thead><tbody></tbody></table></div></div>
+  </section>
+</main>
+
+<!-- 个人画像弹窗 -->
+<div class="modal hidden" id="modal">
+  <div class="modal-box">
+    <div class="modal-head"><h2 id="mTitle">个人画像</h2><button class="btn sm" id="mClose">关闭</button></div>
+    <div class="modal-body">
+      <div class="kpis small" id="mKpi"></div>
+      <div class="grid g2">
+        <div class="card"><h3>个人到岗 / 离岗时刻</h3><div class="chart" id="c_personTime"></div></div>
+        <div class="card"><h3>个人日历热力</h3><div class="chart" id="c_personCal"></div></div>
+      </div>
+      <div class="grid g2">
+        <div class="card"><h3>个人打卡地点</h3><div class="table-wrap"><table id="mPlace"><thead></thead><tbody></tbody></table></div></div>
+        <div class="card"><h3>个人异常明细</h3><div class="table-wrap"><table id="mExc"><thead></thead><tbody></tbody></table></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 抓取抽屉 -->
+<div class="drawer hidden" id="drawer">
+  <div class="drawer-box">
+    <div class="drawer-head"><h3>从企业微信接口拉取打卡数据</h3><button class="btn sm" id="dClose">关闭</button></div>
+    <div class="grid g2">
+      <label class="fld">开始日期<input type="date" id="dStart"></label>
+      <label class="fld">结束日期<input type="date" id="dEnd"></label>
+      <label class="fld">userid（留空=应用可见范围全员）<input type="text" id="dUsers" placeholder="zhangsan,lisi"></label>
+      <label class="fld">部门 id（逗号分隔，留空=全部）<input type="text" id="dDepts" placeholder="1"></label>
+    </div>
+    <label class="chk"><input type="checkbox" id="dNoDaily"> 跳过打卡日报</label>
+    <label class="chk"><input type="checkbox" id="dNoMonthly"> 跳过打卡月报</label>
+    <div class="drawer-act"><button class="btn primary" id="dRun">开始拉取</button><span id="dMsg" class="hint"></span></div>
+    <div class="bar"><i id="dBar"></i></div>
+    <pre id="dLog" class="log"></pre>
+  </div>
+</div>
+
+<div class="hidden" id="boot"></div>
+<script src="js/store.js"></script>
+<script src="js/attendance.js"></script>
+<script src="js/metrics.js"></script>
+<script src="js/map-effects.js"></script>
+<script src="js/map.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

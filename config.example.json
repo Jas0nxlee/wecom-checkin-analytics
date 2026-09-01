@@ -1,0 +1,10 @@
+{
+  "corpid": "ww1234567890abcdef",
+  "corpsecret": "把「打卡-可调用接口的应用」里那个自建应用的 Secret 填进来",
+
+  "_说明1": "corpid：企业微信管理后台 → 我的企业 → 企业ID",
+  "_说明2": "corpsecret：应用管理 → 自建应用 → Secret。该应用必须先配置到「打卡 → 设置 → 可调用接口的应用」中，否则 getcheckindata 会返回 60011 / 无权限",
+  "_说明3": "如果不想用文件，也可以 export WECOM_CORPID / WECOM_CORPSECRET 环境变量，或命令行 --corpid/--corpsecret",
+  "_说明4": "通讯录权限不是必需的：没有通讯录权限时，脚本会自动用打卡日报里的 name / departs_name 还原姓名与部门",
+  "_说明5": "接口限制：打卡记录单次时间跨度 ≤30 天（脚本按 28 天分段）、useridlist ≤100 人（脚本自动分批）、限流 600 次/分钟"
+}
