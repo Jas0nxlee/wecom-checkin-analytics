@@ -1,0 +1,23 @@
+services:
+  wecom-checkin-analytics:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: wecom-checkin-analytics:latest
+    container_name: wecom-checkin-analytics
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      # 数据与凭证用卷挂载，镜像内不放敏感内容
+      - ./data:/app/data
+      - ./config.json:/app/config.json:ro
+    # 让容器内进程与宿主机一致时区（镜像内已设 TZ，此处兜底）
+    environment:
+      - TZ=Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8787/api/meta',timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
