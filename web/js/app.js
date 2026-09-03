@@ -109,6 +109,8 @@
     });
     $('tblCount').textContent = rows.length + ' 条';
     $('pgInfo').textContent = (rows.length ? (tbl.page + 1) : 0) + ' / ' + pages + ' 页';
+    if ($('pgPrev')) $('pgPrev').disabled = tbl.page === 0;
+    if ($('pgNext')) $('pgNext').disabled = tbl.page >= pages - 1;
   }
   function spRows() {
     var out = [];
@@ -137,6 +139,9 @@
   function renderDeptTable() {
     var rows = M.deptCompare().slice().sort(function (a, b) {
       var x = a[deptSort], y = b[deptSort];
+      if (x == null && y == null) return 0;
+      if (x == null) return 1;
+      if (y == null) return -1;
       if (typeof x === 'number' && typeof y === 'number') return (x - y) * deptDir;
       return String(x).localeCompare(String(y), 'zh') * deptDir;
     });
@@ -409,7 +414,7 @@
     var query=($('coverageSearch').value||'').trim().toLowerCase(),mode=$('coverageFilter').value;
     var rows=M.personSummary().filter(function(p){return (!query||(p.name+' '+p.dept).toLowerCase().indexOf(query)>=0) && (mode==='all'||p.rateMissingPersonDays>0);});
     $('coverageCount').textContent=rows.length+' 人';
-    $('coverageBody').innerHTML=rows.map(function(p){return '<tr><td class="name" data-uid="'+esc(p.userid)+'">'+esc(p.name)+'</td><td>'+esc(p.dept)+'</td><td>'+p.ratePersonDays+'</td><td>'+p.personDays+'</td><td>'+p.unknownSchedule+'</td><td>'+p.missingExpectedDaily+'</td></tr>';}).join('')||'<tr><td colspan="6">没有匹配的人员</td></tr>';
+    $('coverageBody').innerHTML=rows.map(function(p){return '<tr><td class="name" data-uid="'+esc(p.userid)+'">'+esc(p.name)+'</td><td>'+esc(p.dept)+'</td><td class="num">'+p.ratePersonDays+'</td><td class="num">'+p.personDays+'</td><td class="num">'+p.unknownSchedule+'</td><td class="num">'+p.missingExpectedDaily+'</td></tr>';}).join('')||'<tr><td colspan="6">没有匹配的人员</td></tr>';
     $('coverageBody').querySelectorAll('td.name').forEach(function(td){td.onclick=function(){showPerson(td.dataset.uid);};});
   }
 
@@ -440,10 +445,20 @@
       renderActiveTab();
       setTimeout(Charts.resizeAll, 40);
     });
+    // 窗口尺寸变化时同步 ECharts 画布大小，避免图表与容器错位（地图已自行处理 resize）
+    var resizeTimer;
+    global.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () { Charts.resizeAll(); }, 80);
+    });
     $('btnApply').onclick = applyFromToolbar;
     $('fQuick').onchange = function () {
       if (this.value === 'all') { $('fStart').value = S.range.start; $('fEnd').value = S.range.end; }
-      else { $('fEnd').value = S.range.end; $('fStart').value = U.addDays(S.range.end, -(+this.value - 1)); }
+      else {
+        $('fEnd').value = S.range.end;
+        var s = U.addDays(S.range.end, -(+this.value - 1));
+        $('fStart').value = s < S.range.start ? S.range.start : s;
+      }
       applyFromToolbar();
     };
     $('btnFetch').onclick = openDrawer;
@@ -487,7 +502,10 @@
     $('tblSearch').oninput = function () { tbl.page = 0; renderTable(); };
     $('tblExc').onchange = function () { tbl.page = 0; renderTable(); };
     $('pgPrev').onclick = function () { if (tbl.page > 0) { tbl.page--; renderTable(); } };
-    $('pgNext').onclick = function () { tbl.page++; renderTable(); };
+    $('pgNext').onclick = function () {
+      var pages = Math.max(1, Math.ceil(tbl.rows.length / tbl.size));
+      if (tbl.page < pages - 1) { tbl.page++; renderTable(); }
+    };
     $('mClose').onclick = function () { $('modal').classList.add('hidden'); };
     $('modal').addEventListener('click', function (e) { if (e.target === $('modal')) $('modal').classList.add('hidden'); });
     $('dRun').onclick = runFetch;

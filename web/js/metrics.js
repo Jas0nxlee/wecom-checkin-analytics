@@ -84,7 +84,7 @@
       seriousExc:excSum['旷工']+excSum['地点异常']+excSum['设备异常'],
       excRate:rate(rateExcTotal),
       workSec:workSec,workKnownDays:workKnown.length,otSec:otSec,expectedWorkSec:U.sum(standardKnown,function(d){return d.standardWorkSec;}),
-      standardDays:standardKnown.length,avgWorkHours:workExpected.length?U.sum(workExpected,function(d){return d.workSec;})/workExpected.length/3600:0,
+      standardDays:standardKnown.length,avgWorkHours:workExpected.length?U.sum(workExpected,function(d){return d.workSec;})/workExpected.length/3600:null,
       otIntensity:workSec?otSec/workSec:0,otHoursPerDay:U.uniq(list.map(function(d){return d.date;})).length?otSec/3600/U.uniq(list.map(function(d){return d.date;})).length:0,
       otUnknownDays:present.filter(function(d){return !d.otKnown;}).length,
       punches:punches,outsidePunch:outside,placeCount:U.uniq(records.map(function(r){return r.location_title;}).filter(Boolean)).length,
@@ -141,7 +141,7 @@
       { label: '早退率', val: U.rateText(a.earlyRate), unit: '%', cls: a.earlyRate==null?'':a.earlyRate > 0.12 ? 'warn' : 'good', foot: a.early + ' 次 · 累计 ' + (a.durEarly / 3600).toFixed(1) + 'h', trend: trend('earlyRate', 'down'), spark: sp('early') },
       { label: '缺卡率', val: U.rateText(a.missRate), unit: '%', cls: a.missRate==null?'':a.missRate > 0.15 ? 'bad' : (a.missRate > 0.06 ? 'warn' : 'good'), foot: a.miss + ' 次 · 按最新日报修正结果', trend: trend('missRate', 'down'), spark: sp('miss') },
       { label: '旷工 / 严重异常', val: a.absent, unit: '人次', cls: a.absent > 0 ? 'bad' : 'good', foot: '地点异常 ' + a.placeExc + ' · 设备异常 ' + a.devExc, trend: trend('seriousExc', 'down'), spark: sp('serious') },
-      { label: '人均日工时', val: a.workKnownDays?a.avgWorkHours.toFixed(2):'—', unit: 'h', foot: '含零值日报 · 标准 ' + (a.expectedWorkSec / Math.max(1, a.standardDays) / 3600).toFixed(2) + 'h', trend: trend('avgWorkHours', 'up'), spark: sp('work') },
+      { label: '人均日工时', val: a.avgWorkHours!=null?a.avgWorkHours.toFixed(2):'—', unit: 'h', foot: '含零值日报 · 标准 ' + (a.expectedWorkSec / Math.max(1, a.standardDays) / 3600).toFixed(2) + 'h', trend: trend('avgWorkHours', 'up'), spark: sp('work') },
       { label: '19点后加班', val: (a.otSec / 3600).toFixed(1), unit: 'h', foot: '非审批/计薪加班 · 时刻待核定 ' + a.otUnknownDays + ' 人日', trend: trend('otSec', 'down'), spark: sp('ot') },
       { label: '平均到岗时刻', val: U.fmtMin(a.avgArriveMin), unit: '', foot: '较标准 ' + U.fmtOffset(a.avgOffsetIn) + ' · 中位 ' + U.fmtOffset(a.medOffsetIn), trend: trend('avgOffsetIn', 'down'), spark: sp('arrive') },
       { label: '平均离岗时刻', val: U.fmtMin(a.avgLeaveMin), unit: '', foot: '较标准 ' + U.fmtOffset(a.avgOffsetOut), trend: trend('avgOffsetOut', 'down'), spark: sp('leave') },
@@ -156,7 +156,7 @@
   function seriesByDate(list, kind) {
     var g=U.groupBy(list,function(d){return d.date;});
     return Object.keys(g).sort().map(function(date){
-      var a=agg(g[date]),keys={head:'personDays',attendance:'attendanceRate',onTime:'onTimeRate',late:'lateRate',early:'earlyRate',miss:'missRate',
+      var a=agg(g[date]),keys={head:'headcount',attendance:'attendanceRate',onTime:'onTimeRate',late:'lateRate',early:'earlyRate',miss:'missRate',
         serious:'seriousExc',work:'avgWorkHours',arrive:'avgArriveMin',leave:'avgLeaveMin',outside:'outsideRate',places:'placeCount',noGeo:'noGeo',excRate:'excRate'};
       if(kind==='ot')return a.otSec/3600;
       var value=a[keys[kind]];
@@ -454,8 +454,9 @@
       else if (h < 7) hist['6-7h']++; else if (h < 8) hist['7-8h']++; else if (h < 9) hist['8-9h']++;
       else if (h < 10) hist['9-10h']++; else if (h < 12) hist['10-12h']++; else hist['≥12h']++;
     });
-    // 连续在岗（含周末）与连续工作日打卡
-    var byUser = U.groupBy(rows.filter(function(d){return d.present;}), function (d) { return d.userid; });
+    // 连续在岗（含周末与外出打卡）：当天有出勤或任何实际打卡（含上下班/外出）即算在岗
+    function onDuty(d) { return d.present || d.punches > 0; }
+    var byUser = U.groupBy(rows.filter(onDuty), function (d) { return d.userid; });
     var streak = Object.keys(byUser).map(function (uid) {
       var dates = U.uniq(byUser[uid].map(function (d) { return d.date; })).sort();
       var best = 1, cur = 1;
@@ -465,8 +466,10 @@
       }
       var restDays = U.uniq(byUser[uid].filter(function (d) { return !d.isWorkday; }).map(function (d) { return d.date; })).length;
       return { name: S.name(uid), dept: byUser[uid][0].dept, streak: best, days: dates.length, restDays: restDays,
-        otHours: U.sum(byUser[uid], function (d) { return d.otSec; }) / 3600 };
-    }).sort(function (a, b) { return b.streak - a.streak || b.restDays - a.restDays; });
+        otHours: U.sum(byUser[uid], function (d) { return d.otSec; }) / 3600, userid: uid };
+    }).sort(function (a, b) {
+      return b.streak - a.streak || b.restDays - a.restDays || b.days - a.days || b.otHours - a.otHours;
+    });
     var otRank = personSummary().map(function (p) { return { name: p.name, dept: p.dept, otHours: p.otSec / 3600, workHours: p.workSec / 3600, days: p.personDays, outside: p.outside, userid: p.userid }; })
       .sort(function (a, b) { return b.otHours - a.otHours; });
     var otComp = { '工作日19点后': 0, '休息日19点后': 0, '排班待核定19点后': 0 };

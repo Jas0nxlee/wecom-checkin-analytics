@@ -5,13 +5,16 @@
 }
 html[data-theme="dark"]{
   --bg:#12161f; --card:#1a2029; --ink:#e7ecf5; --sub:#93a0b5; --line:#28313f;
-  --pri:#5b8dff; --pri-soft:#1e293f; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  --pri:#5b8dff; --pri-soft:#1e293f; --ok:#1dbf80; --warn:#f59e0b; --bad:#f87171;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
   font:14px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Helvetica,Arial,sans-serif}
 h1,h2,h3{margin:0;font-weight:650}
 h1{font-size:17px} h2{font-size:16px} h3{font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+summary{font-size:13.5px;font-weight:650;cursor:pointer;user-select:none;outline:none}
+summary:hover{color:var(--pri)}
 .sub{margin:2px 0 0;font-size:12px;color:var(--sub)}
 .hint{font-size:11.5px;font-weight:400;color:var(--sub)}
 .hidden{display:none!important}
@@ -66,7 +69,8 @@ main{padding:16px 18px 40px}
 /* ---------- 卡片与图表 ---------- */
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px 8px;
   box-shadow:var(--shadow);margin-bottom:14px;min-width:0}
-.grid{display:grid;gap:14px;margin-bottom:0}
+.grid{display:grid;gap:14px;margin-bottom:14px}
+.grid .card{margin-bottom:0}
 .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media (max-width:1180px){.g3{grid-template-columns:repeat(2,minmax(0,1fr))}}

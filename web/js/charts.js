@@ -88,12 +88,12 @@
     o.legend.top = 0;
     o.xAxis = Object.assign(axis(s.map(function (d) { return shortDate(d.date); })), {
       axisLabel: { color: o._t.sub, fontSize: 10, rotate: s.length > 35 ? 45 : 0, hideOverlap: true }, splitLine: { show: false } });
-    o.yAxis = [Object.assign(vAxis(''), { minInterval: 1 }), Object.assign(vAxis('出勤率'), { max: 100, axisLabel: { formatter: '{value}%', color: o._t.sub, fontSize: 11 } })];
+    o.yAxis = [Object.assign(vAxis(''), { minInterval: 1 }), Object.assign(vAxis('出勤率'), { max: 100, axisLabel: { formatter: '{value}%', color: o._t.sub, fontSize: 11 }, splitLine: { show: false } })];
     o.series = [
       { name: '出勤人数', type: 'bar', data: s.map(function (d) { return d.present; }), itemStyle: { color: '#2f6fed', borderRadius: [3, 3, 0, 0] }, barMaxWidth: 18 },
       { name: '迟到人次', type: 'bar', stack: 'exc', data: s.map(function (d) { return d.late; }), itemStyle: { color: '#e59118' }, barMaxWidth: 18 },
       { name: '缺卡人次', type: 'bar', stack: 'exc', data: s.map(function (d) { return d.miss; }), itemStyle: { color: '#e14b4b' }, barMaxWidth: 18 },
-      { name: '外勤打卡', type: 'bar', stack: 'exc', data: s.map(function (d) { return d.outside; }), itemStyle: { color: '#12a06a' }, barMaxWidth: 18 },
+      { name: '外勤打卡', type: 'bar', stack: 'out', data: s.map(function (d) { return d.outside; }), itemStyle: { color: '#12a06a', borderRadius: [3, 3, 0, 0] }, barMaxWidth: 18 },
       { name: '出勤率', type: 'line', yAxisIndex: 1, smooth: true, symbol: 'none', lineStyle: { width: 2.5 },
         connectNulls: false, data: s.map(function (d) { return d.attendanceRate == null ? null : percent(d.attendanceRate); }) }
     ];
@@ -136,10 +136,10 @@
     var o = base();
     rowsLayout('c_topPlaceMini', top.length, 280, 24, 36);
     o.grid = { left: 112, right: 40, top: 8, bottom: 6, containLabel: true };
-    o.tooltip = { formatter: function (x) { return x.name + '<br>打卡 <b>' + x.value + '</b> 次'; }, backgroundColor: 'rgba(24,30,42,.94)', borderWidth: 0, textStyle: { color: '#eef2fa', fontSize: 12 } };
+    o.tooltip = { formatter: function (x) { var title = (x.data && x.data.fullName) || x.name; return title + '<br>打卡 <b>' + x.value + '</b> 次'; }, backgroundColor: 'rgba(24,30,42,.94)', borderWidth: 0, textStyle: { color: '#eef2fa', fontSize: 12 } };
     o.xAxis = Object.assign(vAxis(), { splitLine: { lineStyle: { color: o._t.line, type: 'dashed' } } });
     o.yAxis = Object.assign(rowAxis(top.map(function (t) { return t[0].length > 12 ? t[0].slice(0, 11) + '…' : t[0]; }).reverse()), { splitLine: { show: false } });
-    o.series = [{ type: 'bar', data: top.map(function (t) { return t[1]; }).reverse(), barMaxWidth: 14,
+    o.series = [{ type: 'bar', data: top.map(function (t) { return { value: t[1], fullName: t[0] }; }).reverse(), barMaxWidth: 14,
       label: { show: true, position: 'right', fontSize: 11, color: o._t.sub },
       itemStyle: { color: function (p2) { return p2.dataIndex >= top.length - 1 ? '#e03b3b' : '#5b8dff'; }, borderRadius: [0, 3, 3, 0] } }];
     return mk('c_topPlaceMini', o);
@@ -156,7 +156,10 @@
     o.xAxis = Object.assign(axis(h.labels), { axisLabel: { color: o._t.sub, fontSize: 9, rotate: 55, interval: which === 'in' ? 1 : 2 }, splitLine: { show: false } });
     o.yAxis = vAxis('人日数');
     o.series = [{ type: 'bar', data: h.values.map(function (v, i) {
-      return { value: v, itemStyle: { color: i < h.zeroIndex ? '#2f6fed' : (i === h.zeroIndex ? '#12a06a' : '#e14b4b'), borderRadius: [2, 2, 0, 0] } };
+      var c = which === 'in'
+        ? (i < h.zeroIndex ? '#2f6fed' : (i === h.zeroIndex ? '#12a06a' : '#e14b4b'))
+        : (i < h.zeroIndex ? '#e14b4b' : (i === h.zeroIndex ? '#12a06a' : '#2f6fed'));
+      return { value: v, itemStyle: { color: c, borderRadius: [2, 2, 0, 0] } };
     }), barCategoryGap: '18%' },
     { name: '标准时刻', type: 'line', markLine: { silent: true, symbol: 'none',
         label: { show: false },
@@ -211,8 +214,9 @@
     o.grid = { left: 50, right: 20, top: 30, bottom: 44, containLabel: true };
     o.tooltip = { trigger: 'item', formatter: function (p) {
       if (p.seriesType !== 'boxplot') return '';
-      return p.seriesName + ' · ' + p.name + '<br>最早 ' + U.fmtMin(p.value[1]) + '<br>下四分位 ' + U.fmtMin(p.value[2]) +
-        '<br>中位 <b>' + U.fmtMin(p.value[3]) + '</b><br>上四分位 ' + U.fmtMin(p.value[4]) + '<br>最晚 ' + U.fmtMin(p.value[5]);
+      function fmtBox(v) { return v == null ? '-' : U.fmtOffset(v); }
+      return p.seriesName + ' · ' + p.name + '<br>最早 ' + fmtBox(p.value[1]) + '<br>下四分位 ' + fmtBox(p.value[2]) +
+        '<br>中位 <b>' + fmtBox(p.value[3]) + '</b><br>上四分位 ' + fmtBox(p.value[4]) + '<br>最晚 ' + fmtBox(p.value[5]);
     }, backgroundColor: 'rgba(24,30,42,.94)', borderWidth: 0, textStyle: { color: '#eef2fa', fontSize: 12 } };
     o.xAxis = Object.assign(axis(b.weeks.map(function (w) { return w.slice(5); })), { splitLine: { show: false } });
     o.yAxis = Object.assign(vAxis('相对标准时刻（分钟）'), { axisLabel: { formatter: function (v) { return (v > 0 ? '+' : '') + v; }, color: o._t.sub, fontSize: 11 } });
@@ -251,7 +255,7 @@
       { type: 'scatter', symbolSize: 5.5, data: d.pts.filter(function (p) { return !p[5]; }), itemStyle: { color: 'rgba(47,111,237,.5)' } },
       { type: 'scatter', symbolSize: 7, data: d.pts.filter(function (p) { return p[5]; }), itemStyle: { color: 'rgba(225,75,75,.85)' } },
       { type: 'line', symbol: 'none', silent: true, lineStyle: { color: '#12a06a', type: 'dashed', width: 1.5 },
-        data: [[6 * 60, 12 * 60], [25 * 60, 25 * 60]], tooltip: { show: false }, name: '在岗等时线' }
+        data: [[6 * 60, 14 * 60], [17 * 60, 25 * 60]], tooltip: { show: false }, name: '8小时在岗等时线' }
     ];
     return mk('c_scatterTime', o);
   }
@@ -261,10 +265,10 @@
     var o = base();
     rowsLayout(id, pairs.length, 280, 24, 36);
     o.grid = { left: 112, right: 44, top: 8, bottom: 6, containLabel: true };
-    o.tooltip = { formatter: function (x) { return x.name + '<br><b>' + x.value + '</b> ' + (unit || '次'); }, backgroundColor: 'rgba(24,30,42,.94)', borderWidth: 0, textStyle: { color: '#eef2fa', fontSize: 12 } };
+    o.tooltip = { formatter: function (x) { var title = (x.data && x.data.fullName) || x.name; return title + '<br><b>' + x.value + '</b> ' + (unit || '次'); }, backgroundColor: 'rgba(24,30,42,.94)', borderWidth: 0, textStyle: { color: '#eef2fa', fontSize: 12 } };
     o.xAxis = Object.assign(vAxis(), { splitLine: { lineStyle: { color: o._t.line, type: 'dashed' } } });
     o.yAxis = Object.assign(rowAxis(pairs.map(function (p) { return String(p[0]).length > 14 ? String(p[0]).slice(0, 13) + '…' : String(p[0]); }).reverse()), { splitLine: { show: false } });
-    o.series = [{ type: 'bar', data: pairs.map(function (p) { return p[1]; }).reverse(), barMaxWidth: 15,
+    o.series = [{ type: 'bar', data: pairs.map(function (p) { return { value: p[1], fullName: p[0] }; }).reverse(), barMaxWidth: 15,
       label: { show: true, position: 'right', fontSize: 11, color: o._t.sub },
       itemStyle: { borderRadius: [0, 3, 3, 0], color: colorFn || '#5b8dff' } }];
     return mk(id, o);
@@ -323,9 +327,9 @@
     o.yAxis = Object.assign(rowAxis(rows.map(function (r) { return r.name; }).reverse()), { splitLine: { show: false } });
     o.xAxis = vAxis('数量');
     o.series = [
-      { name: '打卡地点数', type: 'bar', stack: 'a', data: rows.map(function (r) { return r.places; }).reverse(), barMaxWidth: 14, itemStyle: { color: '#5b8dff' } },
-      { name: '外勤打卡次数', type: 'bar', stack: 'a', data: rows.map(function (r) { return r.outside; }).reverse(), barMaxWidth: 14, itemStyle: { color: '#12a06a' } },
-      { name: '涉及城市数', type: 'bar', stack: 'a', data: rows.map(function (r) { return r.cities; }).reverse(), barMaxWidth: 14, itemStyle: { color: '#e59118' } }
+      { name: '打卡地点数', type: 'bar', data: rows.map(function (r) { return r.places; }).reverse(), barMaxWidth: 14, itemStyle: { color: '#5b8dff', borderRadius: [0, 3, 3, 0] } },
+      { name: '外勤打卡次数', type: 'bar', data: rows.map(function (r) { return r.outside; }).reverse(), barMaxWidth: 14, itemStyle: { color: '#12a06a', borderRadius: [0, 3, 3, 0] } },
+      { name: '涉及城市数', type: 'bar', data: rows.map(function (r) { return r.cities; }).reverse(), barMaxWidth: 14, itemStyle: { color: '#e59118', borderRadius: [0, 3, 3, 0] } }
     ];
     return mk('c_diversity', o);
   }
@@ -339,13 +343,14 @@
     var o = trendBase(s, ['出勤率', '迟到率', '缺卡率', '早退率'], function (d) {
       return [d.attendanceRate == null ? null : percent(d.attendanceRate), percent(d.lateRate), percent(d.missRate), percent(d.earlyRate)];
     }, '{value}%');
+    o.yAxis = [o.yAxis[0]];
     return mk('c_rateTrend', o);
   }
   function workTrend() {
     var s = M.dailySeries();
     if (!s.length) return noData('c_workTrend');
     var o = trendBase(s, ['人均工时', '人均加班', '外勤打卡次数'], function (d) {
-      return [+d.avgWorkHours.toFixed(2), +(d.otHours / Math.max(1, d.present)).toFixed(2), d.outside];
+      return [d.avgWorkHours == null ? null : +d.avgWorkHours.toFixed(2), +(d.otHours / Math.max(1, d.present)).toFixed(2), d.outside];
     }, null, ['#2f6fed', '#e59118', '#39b6c4']);
     o.yAxis = [vAxis('小时'), Object.assign(vAxis('次'), { splitLine: { show: false } })];
     o.series[2].yAxisIndex = 1;
@@ -362,7 +367,7 @@
     o.legend.top = 0;
     o.xAxis = Object.assign(axis(s.map(function (d) { return shortDate(d.date); })), {
       splitLine: { show: false }, axisLabel: { color: o._t.sub, fontSize: 10, rotate: s.length > 32 ? 45 : 0, hideOverlap: true } });
-    o.yAxis = [Object.assign(vAxis('', fmt || '{value}'), { splitLine: { lineStyle: { color: o._t.line, type: 'dashed' } } }), vAxis('')];
+    o.yAxis = [Object.assign(vAxis('', fmt || '{value}'), { splitLine: { lineStyle: { color: o._t.line, type: 'dashed' } } }), Object.assign(vAxis(''), { splitLine: { show: false } })];
     var colors = colors_ || ['#2f6fed', '#e59118', '#e14b4b', '#7b61d6'];
     o.series = names.map(function (n, i) {
       return { name: n, type: 'line', smooth: true, symbol: 'circle', symbolSize: 4, showSymbol: s.length <= 45,
@@ -397,7 +402,7 @@
     o.tooltip = { trigger: 'axis', axisPointer: { type: 'shadow' }, backgroundColor: 'rgba(24,30,42,.94)', borderWidth: 0, textStyle: { color: '#eef2fa', fontSize: 12 } };
     o.legend.top = 0;
     o.xAxis = Object.assign(axis(w.map(function (x) { return x.week.slice(5); })), { splitLine: { show: false } });
-    o.yAxis = [Object.assign(vAxis('人日'), { splitLine: { lineStyle: { color: o._t.line, type: 'dashed' } } }), Object.assign(vAxis('比率 %'), { axisLabel: { formatter: '{value}%', color: o._t.sub, fontSize: 11 } })];
+    o.yAxis = [Object.assign(vAxis('人日'), { splitLine: { lineStyle: { color: o._t.line, type: 'dashed' } } }), Object.assign(vAxis('比率 %'), { splitLine: { show: false }, axisLabel: { formatter: '{value}%', color: o._t.sub, fontSize: 11 } })];
     o.series = [
       { name: '出勤人日', type: 'bar', data: w.map(function (x) { return x.personDays; }), barMaxWidth: 20, itemStyle: { color: '#5b8dff', borderRadius: [3, 3, 0, 0] } },
       { name: '加班时长', type: 'bar', data: w.map(function (x) { return +x.otHours.toFixed(1); }), barMaxWidth: 20, itemStyle: { color: '#12a06a', borderRadius: [3, 3, 0, 0] } },
@@ -414,7 +419,7 @@
     o.tooltip = { trigger: 'axis', axisPointer: { type: 'shadow' }, backgroundColor: 'rgba(24,30,42,.94)', borderWidth: 0, textStyle: { color: '#eef2fa', fontSize: 12 } };
     o.legend.top = 0;
     o.xAxis = Object.assign(axis(w.map(function (x) { return x.name; })), { splitLine: { show: false } });
-    o.yAxis = [Object.assign(vAxis('平均出勤人数'), { splitLine: { lineStyle: { color: o._t.line, type: 'dashed' } } }), Object.assign(vAxis('%'), { axisLabel: { formatter: '{value}%', color: o._t.sub, fontSize: 11 } })];
+    o.yAxis = [Object.assign(vAxis('平均出勤人数'), { splitLine: { lineStyle: { color: o._t.line, type: 'dashed' } } }), Object.assign(vAxis('%'), { splitLine: { show: false }, axisLabel: { formatter: '{value}%', color: o._t.sub, fontSize: 11 } })];
     o.series = [
       { name: '平均出勤人数', type: 'bar', data: w.map(function (x) { return +x.present.toFixed(1); }), barMaxWidth: 24, itemStyle: { color: '#5b8dff', borderRadius: [3, 3, 0, 0] } },
       { name: '迟到率', type: 'line', yAxisIndex: 1, smooth: true, data: w.map(function (x) { return percent(x.lateRate); }), itemStyle: { color: '#e59118' } },
@@ -431,9 +436,9 @@
     o.tooltip = { trigger: 'axis', axisPointer: { type: 'shadow' }, backgroundColor: 'rgba(24,30,42,.94)', borderWidth: 0, textStyle: { color: '#eef2fa', fontSize: 12 } };
     o.legend.top = 0;
     o.xAxis = Object.assign(axis(m.map(function (x) { return x.month; })), { splitLine: { show: false } });
-    o.yAxis = [Object.assign(vAxis('小时/人日'), { splitLine: { lineStyle: { color: o._t.line, type: 'dashed' } } }), Object.assign(vAxis('%'), { axisLabel: { formatter: '{value}%', color: o._t.sub, fontSize: 11 } })];
+    o.yAxis = [Object.assign(vAxis('小时/人日'), { splitLine: { lineStyle: { color: o._t.line, type: 'dashed' } } }), Object.assign(vAxis('%'), { splitLine: { show: false }, axisLabel: { formatter: '{value}%', color: o._t.sub, fontSize: 11 } })];
     o.series = [
-      { name: '人均工时', type: 'bar', data: m.map(function (x) { return +x.avgWorkHours.toFixed(2); }), barMaxWidth: 22, itemStyle: { color: '#5b8dff', borderRadius: [3, 3, 0, 0] } },
+      { name: '人均工时', type: 'bar', data: m.map(function (x) { return x.avgWorkHours == null ? null : +x.avgWorkHours.toFixed(2); }), barMaxWidth: 22, itemStyle: { color: '#5b8dff', borderRadius: [3, 3, 0, 0] } },
       { name: '人均加班(h)', type: 'bar', data: m.map(function (x) { return +(x.otHours / Math.max(1, x.head)).toFixed(1); }), barMaxWidth: 22, itemStyle: { color: '#12a06a', borderRadius: [3, 3, 0, 0] } },
       { name: '出勤率', type: 'line', yAxisIndex: 1, smooth: true, data: m.map(function (x) { return percent(x.attendanceRate); }), itemStyle: { color: '#2f6fed' } },
       { name: '迟到率', type: 'line', yAxisIndex: 1, smooth: true, data: m.map(function (x) { return percent(x.lateRate); }), itemStyle: { color: '#e59118' } },
@@ -552,18 +557,24 @@
   }
 
   function streakChart() {
-    var rows = M.workLoad().streak.filter(function (r) { return r.streak > 5; }).slice(0, 15);
-    if (!rows.length) return noData('c_streak', '无连续在岗超过 5 天的记录');
+    var rows = M.workLoad().streak.slice(0, 15);
+    if (!rows.length) return noData('c_streak', '无连续在岗记录');
     var o = base();
     rowsLayout('c_streak', rows.length, 280, 24, 48);
     o.grid = { left: 112, right: 46, top: 26, bottom: 26, containLabel: true };
-    o.tooltip = { formatter: function (p) { var r = rows[rows.length - 1 - p.dataIndex]; return r.name + '（' + r.dept + '）<br>最长连续在岗 <b>' + r.streak + '</b> 天<br>区间内在岗 ' + r.days + ' 天，其中休息日 ' + r.restDays + ' 天<br>加班 ' + r.otHours.toFixed(1) + 'h'; }, backgroundColor: 'rgba(24,30,42,.94)', borderWidth: 0, textStyle: { color: '#eef2fa', fontSize: 12 } };
+    o.tooltip = { formatter: function (p) { var r = rows[rows.length - 1 - p.dataIndex]; return '<b>' + r.name + '</b>（' + r.dept + '）<br>最长连续在岗 <b>' + r.streak + '</b> 天<br>区间内在岗 ' + r.days + ' 天，其中休息日 ' + r.restDays + ' 天<br>加班 ' + r.otHours.toFixed(1) + 'h'; }, backgroundColor: 'rgba(24,30,42,.94)', borderWidth: 0, textStyle: { color: '#eef2fa', fontSize: 12 } };
     o.yAxis = Object.assign(rowAxis(rows.map(function (r) { return r.name; }).reverse()), { splitLine: { show: false } });
     o.xAxis = Object.assign(vAxis(''), { minInterval: 1 });
     o.grid.bottom = 34;
     o.series = [{ type: 'bar', barMaxWidth: 14, label: { show: true, position: 'right', fontSize: 10.5, color: o._t.sub },
       data: rows.map(function (r) { return { value: r.streak, itemStyle: { borderRadius: [0, 3, 3, 0], color: r.streak >= 12 ? '#e14b4b' : (r.streak >= 8 ? '#e59118' : '#5b8dff') } }; }).reverse() }];
-    return mk('c_streak', o);
+    var c = mk('c_streak', o);
+    if (c) c.off('click');
+    if (c) c.on('click', function (p) {
+      var r = rows[rows.length - 1 - p.dataIndex];
+      if (r && r.userid) global.App && global.App.showPerson(r.userid);
+    });
+    return c;
   }
 
   function otCompChart() {
@@ -582,13 +593,18 @@
     o.legend.top = 0;
     o.yAxis = Object.assign(rowAxis(rows.map(function (r) { return r.name; }).reverse()), { splitLine: { show: false } });
     o.xAxis = vAxis('小时');
-    o.series = [
-      { name: '加班时长', type: 'bar', stack: 'w', barMaxWidth: 16, itemStyle: { color: '#e14b4b' }, data: rows.map(function (r) { return +r.otHours.toFixed(1); }).reverse() },
-      { name: '标准工时内', type: 'bar', stack: 'w', barMaxWidth: 16, itemStyle: { color: '#5b8dff', borderRadius: [0, 3, 3, 0] }, data: rows.map(function (r) { return +(Math.max(0, r.workHours - r.otHours)).toFixed(1); }).reverse() }
-    ];
-    o.series = [o.series[0]];
-    o.series[0].name = '19点后加班';
-    return mk('c_otRank', o);
+    o.series = [{
+      name: '19点后加班', type: 'bar', barMaxWidth: 16,
+      itemStyle: { color: '#e14b4b', borderRadius: [0, 3, 3, 0] },
+      data: rows.map(function (r) { return +r.otHours.toFixed(1); }).reverse()
+    }];
+    var c = mk('c_otRank', o);
+    if (c) c.off('click');
+    if (c) c.on('click', function (p) {
+      var r = rows[rows.length - 1 - p.dataIndex];
+      if (r && r.userid) global.App && global.App.showPerson(r.userid);
+    });
+    return c;
   }
 
   function lateNightChart() {
@@ -600,7 +616,7 @@
       formatter: function (ps) { var d = n[ps[0].dataIndex]; return d.date + '<br>平均最晚离岗 <b>' + U.fmtMin(d.avg) + '</b><br>90 分位离岗 ' + U.fmtMin(d.p90) + '<br>21 点后离岗 ' + d.over21 + ' 人 · 23 点后 ' + d.over23 + ' 人'; } };
     o.legend.top = 0;
     o.xAxis = Object.assign(axis(n.map(function (d) { return shortDate(d.date); })), { splitLine: { show: false }, axisLabel: { color: o._t.sub, fontSize: 10, rotate: 45, hideOverlap: true } });
-    o.yAxis = [Object.assign(vAxis(), { axisLabel: { formatter: function (v) { return U.fmtMin(v); }, color: o._t.sub, fontSize: 11 }, min: 15 * 60, max: Math.max(25*60,Math.ceil(Math.max.apply(null,n.map(function(x){return x.p90||0;}))/60)*60) }), vAxis('')];
+    o.yAxis = [Object.assign(vAxis(), { axisLabel: { formatter: function (v) { return U.fmtMin(v); }, color: o._t.sub, fontSize: 11 }, min: 15 * 60, max: Math.max(25*60,Math.ceil(Math.max.apply(null,n.map(function(x){return x.p90||0;}))/60)*60) }), Object.assign(vAxis('人数'), { splitLine: { show: false }, minInterval: 1 })];
     o.series = [
       { name: '平均离岗时刻', type: 'line', smooth: true, symbol: 'none', lineStyle: { width: 2.4 }, itemStyle: { color: '#e59118' }, data: n.map(function (d) { return d.avg; }) },
       { name: '90 分位离岗时刻', type: 'line', smooth: true, symbol: 'none', lineStyle: { width: 1.6, type: 'dashed' }, itemStyle: { color: '#7b61d6' }, data: n.map(function (d) { return d.p90; }) },
@@ -616,11 +632,12 @@
     var o=base();
     rowsLayout('c_deptRadar',rows.length,360,24,60);
     o.grid={left:100,right:35,top:30,bottom:35,containLabel:true};
+    o.tooltip = { trigger: 'axis', axisPointer: { type: 'shadow' }, backgroundColor: 'rgba(24,30,42,.94)', borderWidth: 0, textStyle: { color: '#eef2fa', fontSize: 12 } };
     o.yAxis=rowAxis(rows.map(function(r){return r.dept;}).reverse());
     o.xAxis=Object.assign(vAxis('核定比率 %'),{min:0,max:100});
     o.series=[
-      {name:'出勤率',type:'bar',data:rows.map(function(r){return r.attendanceRate*100;}).reverse()},
-      {name:'准点率',type:'bar',data:rows.map(function(r){return r.onTimeRate==null?null:r.onTimeRate*100;}).reverse()}];
+      {name:'出勤率',type:'bar',itemStyle:{color:'#2f6fed',borderRadius:[0,3,3,0]},data:rows.map(function(r){return percent(r.attendanceRate);}).reverse()},
+      {name:'准点率',type:'bar',itemStyle:{color:'#12a06a',borderRadius:[0,3,3,0]},data:rows.map(function(r){return percent(r.onTimeRate);}).reverse()}];
     return mk('c_deptRadar',o);
   }
 
@@ -631,7 +648,7 @@
       { name: '出勤率', get: function (r) { return percent(r.attendanceRate); }, ax: 0 },
       { name: '迟到率', get: function (r) { return percent(r.lateRate); }, ax: 0 },
       { name: '缺卡率', get: function (r) { return percent(r.missRate); }, ax: 0 },
-      { name: '人均工时(h/人日)', get: function (r) { return +r.avgWorkHours.toFixed(2); }, ax: 1 },
+      { name: '人均工时(h/人日)', get: function (r) { return r.avgWorkHours == null ? null : +r.avgWorkHours.toFixed(2); }, ax: 1 },
       { name: '人均加班(h)', get: function (r) { return +r.otHoursPerHead.toFixed(1); }, ax: 1 },
       { name: '外勤占比', get: function (r) { return percent(r.outsideRate); }, ax: 0 }
     ];
@@ -668,7 +685,7 @@
       // 只打了一次卡（缺卡）的那天没有“离岗”概念，置空避免画成 07:00 下班
       { name: '离岗', type: 'line', smooth: true, symbol: 'circle', symbolSize: 5, connectNulls: false,
         data: p.time.map(function (r) { return r[2] > r[1] ? r[2] : null; }), itemStyle: { color: '#e59118' }, lineStyle: { width: 2 } },
-      { name: '迟到', type: 'scatter', symbolSize: 9, itemStyle: { color: '#e14b4b' }, data: p.time.filter(function (r) { return r[4]; }).map(function (r) { return r[1]; }) }
+      { name: '迟到', type: 'scatter', symbolSize: 9, itemStyle: { color: '#e14b4b' }, data: p.time.map(function (r) { return r[4] ? r[1] : null; }) }
     ];
     return mk('c_personTime', o);
   }
@@ -681,8 +698,8 @@
     o.tooltip = { formatter: function (x) { return x.value[0] + ' 打卡 <b>' + x.value[1] + '</b> 次'; }, backgroundColor: 'rgba(24,30,42,.94)', borderWidth: 0, textStyle: { color: '#eef2fa', fontSize: 12 } };
     var dates = p.cal.map(function (c) { return c[0]; }).sort();
     var max = p.cal.reduce(function (a, c) { return Math.max(a, c[1]); }, 1);
-    o.visualMap = { min: 0, max: max, show: false };
-    o.visualMap = { min: 0, max: max, show: false, calculable: false };
+    o.visualMap = { min: 0, max: max, show: false, calculable: false,
+      inRange: { color: ['#e9eef8', '#b9d3f7', '#6fa4ef', '#f2c05a', '#e03b3b'] } };
     o.calendar = { range: [dates[0], dates[dates.length - 1]], orient: 'vertical', cellSize: [44, 15], top: 26, left: 40, right: 14, bottom: 34,
       itemStyle: { borderColor: o._t.line, borderWidth: 1, borderRadius: 2 }, splitLine: { lineStyle: { color: o._t.line } },
       yearLabel: { show: false }, monthLabel: { color: o._t.ink, fontSize: 10, nameMap: 'cn', position: 'start' },

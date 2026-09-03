@@ -104,9 +104,11 @@
     return '其他地点';
   }
   function extractCity(detail) {
-    var m = /([\u4e00-\u9fa5]{2,8}?(?:市|自治州|地区|盟))/.exec(detail || '');
+    if (!detail) return '未知';
+    var s = String(detail).replace(/^(?:中国)?(?:[\u4e00-\u9fa5]{2,10}?(?:省|自治区|特别行政区))?/, '');
+    var m = /([\u4e00-\u9fa5]{2,8}?(?:市|自治州|地区|盟))/.exec(s);
     if (m) return m[1];
-    var m2 = /^([\u4e00-\u9fa5]{2,4}(?:市|区|县))/.exec(detail || '');
+    var m2 = /^([\u4e00-\u9fa5]{2,4}(?:市|区|县))/.exec(s);
     return m2 ? m2[1] : '未知';
   }
   function excList(str) {
