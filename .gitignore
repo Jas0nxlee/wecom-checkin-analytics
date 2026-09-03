@@ -25,3 +25,6 @@ venv/
 
 # Logs and local runtime output
 *.log
+
+# ZCode session artifacts (tool-internal, not project code)
+.zcode/
